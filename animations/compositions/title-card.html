@@ -1,0 +1,156 @@
+<!doctype html>
+<!--
+  CutCrew — TITLE CARD (reusable template)
+  Transparent overlay. Shows the item name over the empty mat and gets bumped away
+  the moment the item lands. Per video, change only the variables:
+    kicker  small pill label          ("UNBOXING")
+    brand   maker / brand             ("iine")
+    title   item name                 ("4-in-1 Charging Dock for NS2")
+    landAt  seconds (from the start of the cut) when the item touches the mat
+  Render (4K, transparent):
+    npx hyperframes render -c compositions/title-card.html --format webm --resolution 4k \
+      --variables '{"title":"…","landAt":5.58}' -o ../projects/<name>/assets/title-card.webm
+-->
+<html
+  lang="en"
+  data-composition-variables='[
+    {"id":"kicker","type":"string","label":"Pill label","default":"UNBOXING"},
+    {"id":"brand","type":"string","label":"Brand","default":"iine"},
+    {"id":"title","type":"string","label":"Item name","default":"4-in-1 Charging Dock for NS2"},
+    {"id":"landAt","type":"number","label":"Item lands at (s)","default":5.58,"min":1.5,"max":30,"step":0.01,"unit":"s"}
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  </head>
+  <body>
+    <style>
+      @font-face {
+        font-family: "HN Display";
+        src: url("/assets/fonts/SegUIVar.ttf") format("truetype");
+        font-weight: 300 900;
+      }
+      @font-face {
+        font-family: "HN Label";
+        src: url("/assets/fonts/bahnschrift.ttf") format("truetype");
+        font-weight: 300 700;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+
+      #title-card {
+        --purple: #5a46d6;
+        --purple-deep: #3d2ea8;
+        --ink: #1d1638;
+        --paper: #ffffff;
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding-top: 250px; /* upper half: the item lands lower-centre */
+      }
+      #tc-float { display: block; }
+      #tc-card {
+        position: relative;
+        display: flex;
+        align-items: stretch;
+        gap: 34px;
+        max-width: 1320px;
+        padding: 40px 64px 46px 40px;
+        background: var(--paper);
+        border-radius: 30px;
+        box-shadow: 0 26px 70px rgba(18, 10, 52, 0.38), 0 4px 14px rgba(18, 10, 52, 0.22);
+      }
+      #tc-bar {
+        width: 14px;
+        flex: none;
+        border-radius: 7px;
+        background: linear-gradient(180deg, var(--purple) 0%, var(--purple-deep) 100%);
+        transform-origin: 50% 0%;
+      }
+      #tc-text { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+      #tc-top { display: flex; align-items: center; gap: 20px; }
+      #tc-pill {
+        display: block;
+        font-family: "HN Label", sans-serif;
+        font-weight: 600;
+        font-size: 26px;
+        letter-spacing: 0.2em;
+        color: var(--paper);
+        background: var(--purple);
+        padding: 9px 18px 8px 22px;
+        border-radius: 999px;
+      }
+      .tc-mask { overflow: hidden; display: block; padding-bottom: 6px; }
+      #tc-brand {
+        display: block;
+        font-family: "HN Display", sans-serif;
+        font-weight: 700;
+        font-size: 38px;
+        color: var(--purple);
+        letter-spacing: -0.01em;
+      }
+      #tc-title {
+        display: block;
+        font-family: "HN Display", sans-serif;
+        font-weight: 800;
+        font-size: 84px;
+        line-height: 1.04;
+        letter-spacing: -0.025em;
+        color: var(--ink);
+        text-wrap: balance;
+      }
+    </style>
+
+    <div id="title-card" data-composition-id="title-card" data-width="1920" data-height="1080">
+      <div id="tc-float">
+        <div id="tc-card">
+          <div id="tc-bar"></div>
+          <div id="tc-text">
+            <div id="tc-top">
+              <span id="tc-pill" data-var-text="kicker">UNBOXING</span>
+              <span class="tc-mask" data-layout-allow-overflow="true"><span id="tc-brand" data-var-text="brand">iine</span></span>
+            </div>
+            <span class="tc-mask" data-layout-allow-overflow="true"><span id="tc-title" data-var-text="title">4-in-1 Charging Dock for NS2</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const vars = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+        const landAt = Math.max(1.5, Number(vars.landAt) || 5.58);
+        const tl = gsap.timeline({ paused: true });
+
+        // In: the card drops onto the mat like a sticker, then its parts settle in.
+        tl.fromTo("#tc-card",
+          { autoAlpha: 0, y: 70, scale: 0.88, rotation: -5 },
+          { autoAlpha: 1, y: 0, scale: 1, rotation: -1.5, duration: 0.75, ease: "back.out(1.7)" }, 0.2);
+        tl.fromTo("#tc-bar", { scaleY: 0 }, { scaleY: 1, duration: 0.5, ease: "power3.out" }, 0.45);
+        tl.fromTo("#tc-pill", { autoAlpha: 0, scale: 0.4 }, { autoAlpha: 1, scale: 1, duration: 0.5, ease: "back.out(2.4)" }, 0.55);
+        tl.fromTo("#tc-brand", { yPercent: 110 }, { yPercent: 0, duration: 0.5, ease: "power3.out" }, 0.62);
+        tl.fromTo("#tc-title", { yPercent: 105 }, { yPercent: 0, duration: 0.6, ease: "power3.out" }, 0.72);
+
+        // Hold: a slow breath so the card never looks frozen (finite, ends before the exit).
+        const holdStart = 1.2, holdEnd = landAt - 0.25;
+        const breaths = Math.max(0, Math.floor((holdEnd - holdStart) / 1.6));
+        if (breaths > 0) {
+          tl.to("#tc-float", { y: -8, duration: 0.8, ease: "sine.inOut", yoyo: true, repeat: breaths * 2 - 1 }, holdStart);
+        }
+
+        // Out: the item lands -> the card gets bumped up and away.
+        tl.to("#tc-card", { y: 10, scaleY: 0.96, scaleX: 1.02, duration: 0.12, ease: "power2.out" }, landAt - 0.08);
+        tl.to("#tc-card", { y: -190, scale: 0.9, rotation: -7, autoAlpha: 0, duration: 0.5, ease: "back.in(1.4)" }, landAt + 0.04);
+        tl.set({}, {}, landAt + 0.7); // short empty tail so the exit always completes
+
+        window.__timelines["title-card"] = tl;
+        tl.seek(0);
+      })();
+    </script>
+  </body>
+</html>

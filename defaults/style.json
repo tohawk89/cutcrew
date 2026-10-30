@@ -1,0 +1,32 @@
+{
+ "cut": {
+  "max_gap": 0.6,
+  "pad": 0.12,
+  "keep_fillers": false
+ },
+ "captions": {
+  "burn_in": false,
+  "font": "Arial",
+  "size": 16,
+  "bold": true,
+  "uppercase": false,
+  "color": "#FFFFFF",
+  "outline_color": "#000000",
+  "outline": 2,
+  "margin_v": 36,
+  "max_words": 7,
+  "max_chars": 42
+ },
+ "audio": {
+  "music_db": -28,
+  "duck": true,
+  "sfx_db": -6,
+  "lufs": -14,
+  "pre": "highpass=f=35,afftdn=nr=10:nf=-75:tn=1",
+  "music_below_lu": 15
+ },
+ "export": {
+  "preset": "medium",
+  "crf": 18
+ }
+}

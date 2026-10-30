@@ -1,0 +1,45 @@
+# --- Machine-specific ---
+.venv/
+__pycache__/
+node_modules/
+.crew-logs/
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+
+# --- Your videos (tens of GB, and private) ---
+# Only the empty folder is shared; every project stays on your machine.
+projects/*
+!projects/.gitkeep
+
+# --- Your taste: learned from your feedback, so it's yours ---
+# Fresh copies come from defaults/ (setup.ps1 copies them in on first run).
+/STYLE.md
+/style.json
+/FEEDBACK.md
+library/CREDITS.md
+
+# --- Third-party files we may not redistribute ---
+# Music/SFX (Pixabay, YouTube Audio Library, Freesound licences forbid re-sharing the files)
+library/music/*
+!library/music/.gitkeep
+library/sfx/*
+!library/sfx/.gitkeep
+# Microsoft fonts: setup.ps1 copies them from C:\Windows\Fonts
+animations/assets/fonts/
+# Website screenshots captured for fact cards
+animations/assets/facts/
+
+# --- HyperFrames working files ---
+animations/.hyperframes/
+animations/snapshots/
+animations/renders/
+
+# --- Any media that slips in elsewhere ---
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.wav
+*.mp3
+*.m4a
+!.claude/skills/studio-crew/sounds/*.wav

@@ -1,0 +1,350 @@
+<!doctype html>
+<!--
+  CutCrew — FACT TALK (reusable template): an inner-talk caption with its source, together.
+  Transparent overlay. The caption comes in first (same bubble as inner-talk.html) and is read
+  alone; then the source page joins it on screen (same browser window as fact-card.html), pushes in
+  on the sentence that proves it, and the purple marker sweeps over it. Both stay together, then
+  leave together, so the viewer never loses the thought the source backs up.
+  The trail dots of the thought bubble always point at the source window.
+  Per use, change only the variables (grab.py prints shot/rects/vw/vh/domain ready to paste):
+    text    the caption, the user's own words      ("Got this for Dune: Part Three — out this December!")
+    layout  where the source sits, by what's free in the frame:
+              below  caption at the top, source under it        (default; hands work low)
+              above  source on top, caption at the bottom       (the action is at the top edge)
+              side   caption on the left, source on the right   (the item sits left/centre and should stay seen)
+    shot, rects, vw, vh, domain   from grab.py
+    label   pill text                                ("SOURCE")
+    cardAt  seconds before the source joins; 0 = auto from the caption's length (≈2.5–4 s)
+    hold    seconds both stay readable once the fact is highlighted (4)
+  Length ≈ cardAt + 2.6 + hold + 0.55 (≈ 10 s for a 10-word caption with hold 4); ffprobe the render.
+  Render (4K, transparent):
+    npx hyperframes render -c compositions/fact-talk.html --format webm --resolution 4k \
+      --variables '{"text":"…","layout":"below",…from grab.py…,"hold":4}' -o ../projects/<name>/assets/fact-talk-1.webm
+-->
+<html
+  lang="en"
+  data-composition-variables='[
+    {"id":"text","type":"string","label":"Caption","default":"Got this for Dune: Part Three — out this December!"},
+    {"id":"layout","type":"string","label":"Layout (below / above / side)","default":"below"},
+    {"id":"shot","type":"string","label":"Screenshot","default":"assets/facts/zus-fact-1.png"},
+    {"id":"rects","type":"string","label":"Fact line boxes (JSON)","default":"[{\"x\":238,\"y\":440,\"w\":151,\"h\":19}]"},
+    {"id":"vw","type":"number","label":"Page width","default":1440,"min":320,"max":3840,"step":1},
+    {"id":"vh","type":"number","label":"Page height","default":900,"min":320,"max":3840,"step":1},
+    {"id":"domain","type":"string","label":"Website","default":"gsc.com.my"},
+    {"id":"label","type":"string","label":"Pill label","default":"SOURCE"},
+    {"id":"cardAt","type":"number","label":"Source joins at (s, 0 = auto)","default":0,"min":0,"max":10,"step":0.1,"unit":"s"},
+    {"id":"hold","type":"number","label":"Hold together (s)","default":4,"min":1.5,"max":20,"step":0.1,"unit":"s"}
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  </head>
+  <body>
+    <style>
+      @font-face {
+        font-family: "HN Display";
+        src: url("/assets/fonts/SegUIVar.ttf") format("truetype");
+        font-weight: 300 900;
+      }
+      @font-face {
+        font-family: "HN Label";
+        src: url("/assets/fonts/bahnschrift.ttf") format("truetype");
+        font-weight: 300 700;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+
+      #fact-talk {
+        --purple: #5a46d6;
+        --purple-deep: #3d2ea8;
+        --purple-soft: #ece9fb;
+        --ink: #1d1638;
+        --paper: #ffffff;
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+      /* soft darkening that arrives with the source so the page reads over moving footage */
+      #ft-scrim {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse at var(--scrim-at, 50% 55%), rgba(18, 10, 52, 0.46) 0%, rgba(18, 10, 52, 0.2) 60%, rgba(18, 10, 52, 0) 100%);
+      }
+      #ft-stage { position: absolute; inset: 0; display: flex; align-items: center; }
+      #ft-stage.layout-below { flex-direction: column; justify-content: flex-start; padding-top: 48px; gap: 76px; }
+      #ft-stage.layout-above { flex-direction: column-reverse; justify-content: flex-start; padding-bottom: 48px; gap: 76px; }
+      #ft-stage.layout-side { flex-direction: row; justify-content: center; gap: 88px; }
+
+      /* ---- caption (inner-talk look) ---- */
+      #ft-talk { position: relative; display: block; flex: none; }
+      #ft-bubble {
+        position: relative;
+        display: flex;
+        align-items: stretch;
+        gap: 22px;
+        max-width: 1150px;
+        padding: 24px 42px 27px 24px;
+        background: var(--paper);
+        border-radius: 28px;
+        box-shadow: 0 22px 60px rgba(18, 10, 52, 0.36), 0 4px 12px rgba(18, 10, 52, 0.2);
+      }
+      #ft-stage.layout-side #ft-bubble { max-width: 620px; }
+      #ft-bar {
+        width: 10px;
+        flex: none;
+        border-radius: 5px;
+        background: linear-gradient(180deg, var(--purple) 0%, var(--purple-deep) 100%);
+        transform-origin: 50% 0%;
+      }
+      #ft-text {
+        display: block;
+        font-family: "HN Display", sans-serif;
+        font-weight: 700;
+        font-size: 46px;
+        line-height: 1.16;
+        letter-spacing: -0.015em;
+        color: var(--ink);
+        text-wrap: balance;
+      }
+      #ft-text .w { display: inline-block; white-space: pre; }
+      /* thought-bubble trail: always points at the source window */
+      .ft-dot {
+        position: absolute;
+        border-radius: 50%;
+        background: var(--paper);
+        box-shadow: 0 10px 26px rgba(18, 10, 52, 0.3);
+      }
+      #ft-dot1 { width: 28px; height: 28px; }
+      #ft-dot2 { width: 16px; height: 16px; }
+      #ft-stage.layout-below #ft-dot1 { left: calc(50% - 14px); bottom: -40px; }
+      #ft-stage.layout-below #ft-dot2 { left: calc(50% - 34px); bottom: -68px; }
+      #ft-stage.layout-above #ft-dot1 { left: calc(50% - 14px); top: -40px; }
+      #ft-stage.layout-above #ft-dot2 { left: calc(50% - 34px); top: -68px; }
+      #ft-stage.layout-side #ft-dot1 { right: -42px; top: calc(50% - 14px); }
+      #ft-stage.layout-side #ft-dot2 { right: -70px; top: calc(50% - 8px); }
+
+      /* ---- source (fact-card look) ---- */
+      #ft-card { position: relative; display: block; flex: none; }
+      #ft-window {
+        position: relative;
+        display: block;
+        border-radius: 24px;
+        overflow: hidden;
+        background: var(--paper);
+        box-shadow: 0 30px 80px rgba(18, 10, 52, 0.45), 0 6px 16px rgba(18, 10, 52, 0.25);
+      }
+      #ft-bar-top {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        height: 56px;
+        padding: 0 22px;
+        background: var(--purple-soft);
+        border-bottom: 2px solid #d9d3f7;
+      }
+      #ft-dots { display: flex; gap: 9px; flex: none; }
+      .ft-wdot { width: 14px; height: 14px; border-radius: 50%; background: #c9c1f3; }
+      .ft-wdot:first-child { background: var(--purple); }
+      #ft-url {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        flex: 1;
+        height: 36px;
+        padding: 0 18px;
+        border-radius: 18px;
+        background: var(--paper);
+        font-family: "HN Display", sans-serif;
+        font-weight: 600;
+        font-size: 20px;
+        color: var(--ink);
+      }
+      #ft-url svg { width: 16px; height: 16px; flex: none; }
+      #ft-view { position: relative; display: block; overflow: hidden; background: #fff; }
+      #ft-page { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+      #ft-img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+      .ft-mark {
+        position: absolute;
+        display: block;
+        border-radius: 4px;
+        /* plain blend, not multiply: multiply vanishes on dark pages (e.g. GSC) */
+        background: rgba(90, 70, 214, 0.26);
+        border-bottom: 3px solid var(--purple);
+        box-shadow: 0 0 0 2px rgba(90, 70, 214, 0.35);
+        transform-origin: 0% 50%;
+      }
+      #ft-pill {
+        position: absolute;
+        right: 30px;
+        top: -28px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 52px;
+        padding: 0 24px 0 20px;
+        border-radius: 26px;
+        background: linear-gradient(180deg, var(--purple) 0%, var(--purple-deep) 100%);
+        box-shadow: 0 10px 26px rgba(18, 10, 52, 0.35);
+        font-family: "HN Label", sans-serif;
+        font-weight: 700;
+        font-size: 24px;
+        letter-spacing: 0.08em;
+        color: var(--paper);
+        white-space: nowrap;
+        z-index: 2;
+      }
+      #ft-pill svg { width: 24px; height: 24px; flex: none; }
+      #ft-pill-domain { font-family: "HN Display", sans-serif; font-weight: 600; letter-spacing: 0; opacity: 0.85; }
+    </style>
+
+    <div id="fact-talk" data-composition-id="fact-talk" data-width="1920" data-height="1080">
+      <div id="ft-scrim"></div>
+      <div id="ft-stage" class="layout-below">
+        <div id="ft-talk">
+          <div id="ft-bubble">
+            <div id="ft-bar"></div>
+            <span id="ft-text"></span>
+          </div>
+          <div class="ft-dot" id="ft-dot1"></div>
+          <div class="ft-dot" id="ft-dot2"></div>
+        </div>
+        <div id="ft-card">
+          <div id="ft-pill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <span id="ft-pill-label">SOURCE</span>
+            <span id="ft-pill-domain"></span>
+          </div>
+          <div id="ft-window">
+            <div id="ft-bar-top">
+              <div id="ft-dots"><span class="ft-wdot"></span><span class="ft-wdot"></span><span class="ft-wdot"></span></div>
+              <div id="ft-url">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#5a46d6" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                <span id="ft-url-text"></span>
+              </div>
+            </div>
+            <div id="ft-view">
+              <div id="ft-page">
+                <img id="ft-img" alt="" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const vars = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+        const layout = ["below", "above", "side"].includes(String(vars.layout)) ? String(vars.layout) : "below";
+        const hold = Math.max(1.5, Number(vars.hold) || 4);
+        const vw = Number(vars.vw) || 1440, vh = Number(vars.vh) || 900;
+        const domain = String(vars.domain || "gsc.com.my");
+        let rects = [];
+        try { rects = JSON.parse(vars.rects || "[]"); } catch (e) { rects = []; }
+        if (!rects.length) rects = [{ x: vw * 0.3, y: vh * 0.45, w: vw * 0.4, h: 20 }];
+
+        const stage = document.getElementById("ft-stage");
+        stage.className = "layout-" + layout;
+        document.getElementById("ft-scrim").style.setProperty("--scrim-at", { below: "50% 58%", above: "50% 42%", side: "60% 50%" }[layout]);
+
+        // Caption: split into words so it "thinks" itself onto the bubble (as inner-talk).
+        const el = document.getElementById("ft-text");
+        const text = String(vars.text || "Got this for Dune: Part Three — out this December!");
+        const words = text.trim().split(/\s+/);
+        el.innerHTML = words.map((w) => '<span class="w">' + w.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</span>").join(" ");
+
+        // Source window: a little smaller than the solo fact card so both fit the frame.
+        const W = layout === "side" ? 1080 : 1000, H = Math.round(W / 1.6);
+        document.getElementById("ft-window").style.width = W + "px";
+        const view = document.getElementById("ft-view");
+        view.style.width = W + "px";
+        view.style.height = H + "px";
+        document.getElementById("ft-pill-label").textContent = String(vars.label || "SOURCE");
+        document.getElementById("ft-pill-domain").textContent = domain;
+        document.getElementById("ft-url-text").textContent = domain;
+        document.getElementById("ft-img").src = String(vars.shot || "assets/facts/zus-fact-1.png");
+
+        // The page lives in its own pixel space (vw × vh) so the marks line up with the screenshot.
+        const page = document.getElementById("ft-page");
+        page.style.width = vw + "px";
+        page.style.height = vh + "px";
+        const marks = rects.map((r) => {
+          const m = document.createElement("span");
+          m.className = "ft-mark";
+          m.style.left = r.x - 4 + "px";
+          m.style.top = r.y - 3 + "px";
+          m.style.width = r.w + 8 + "px";
+          m.style.height = r.h + 6 + "px";
+          page.appendChild(m);
+          return m;
+        });
+
+        // Push-in: frame the fact's lines in the middle of the window, never past the page edge,
+        // and at least 45% of the page wide so the sentence around the fact stays readable.
+        const s0 = W / vw;
+        let bx = Math.min(...rects.map((r) => r.x)) - 60, by = Math.min(...rects.map((r) => r.y)) - 40;
+        let bw = Math.max(...rects.map((r) => r.x + r.w)) + 60 - bx, bh = Math.max(...rects.map((r) => r.y + r.h)) + 40 - by;
+        const minW = 0.45 * vw;
+        if (bw < minW) { bx = Math.max(0, Math.min(vw - minW, bx - (minW - bw) / 2)); bw = minW; }
+        const z = Math.min(2.0, Math.max(1, Math.min((0.92 * vw) / bw, (0.55 * vh) / bh)));
+        const S = s0 * z;
+        const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+        const tx = clamp(W / 2 - (bx + bw / 2) * S, W - vw * S, 0);
+        const ty = clamp(H / 2 - (by + bh / 2) * S, H - vh * S, 0);
+
+        // Timing: the caption is read alone first, then the source joins.
+        const wordsEnd = 0.55 + 0.06 * (words.length - 1) + 0.3;
+        const cardAt = Number(vars.cardAt) > 0 ? Number(vars.cardAt) : Math.max(2.2, wordsEnd + clamp(0.18 * words.length, 1.2, 3));
+        const markAt = cardAt + 2.1;
+        const markEnd = markAt + 0.45 + 0.22 * (marks.length - 1);
+        const outAt = markEnd + hold;
+
+        const tl = gsap.timeline({ paused: true });
+        const origin = { below: "50% 100%", above: "50% 0%", side: "100% 50%" }[layout];
+        const enter = { below: { y: 60 }, above: { y: -60 }, side: { x: 80 } }[layout];
+
+        // 1. Caption alone: trail puffs up, bubble pops in, words appear.
+        tl.fromTo("#ft-dot2", { autoAlpha: 0, scale: 0 }, { autoAlpha: 1, scale: 1, duration: 0.25, ease: "back.out(3)" }, 0.1);
+        tl.fromTo("#ft-dot1", { autoAlpha: 0, scale: 0 }, { autoAlpha: 1, scale: 1, duration: 0.25, ease: "back.out(3)" }, 0.2);
+        tl.fromTo("#ft-bubble",
+          { autoAlpha: 0, y: 30, scale: 0.85, rotation: -2.5 },
+          { autoAlpha: 1, y: 0, scale: 1, rotation: -1, duration: 0.6, ease: "back.out(1.8)", transformOrigin: origin }, 0.3);
+        tl.fromTo("#ft-bar", { scaleY: 0 }, { scaleY: 1, duration: 0.45, ease: "power3.out" }, 0.5);
+        tl.fromTo("#ft-text .w", { autoAlpha: 0, y: 14 },
+          { autoAlpha: 1, y: 0, duration: 0.3, ease: "power2.out", stagger: 0.06 }, 0.55);
+
+        // 2. The source joins: the trail pulses toward it, scrim, window and pill pop in.
+        tl.to(["#ft-dot1", "#ft-dot2"], { scale: 1.3, duration: 0.18, ease: "power2.out", yoyo: true, repeat: 1, stagger: 0.06 }, cardAt - 0.25);
+        tl.fromTo("#ft-scrim", { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, ease: "power1.out" }, cardAt - 0.1);
+        tl.fromTo("#ft-window",
+          { autoAlpha: 0, ...enter, scale: 0.9, rotation: 1.5 },
+          { autoAlpha: 1, x: 0, y: 0, scale: 1, rotation: 0, duration: 0.7, ease: "back.out(1.5)" }, cardAt);
+        tl.fromTo("#ft-pill",
+          { autoAlpha: 0, y: 16, scale: 0.8 },
+          { autoAlpha: 1, y: 0, scale: 1, duration: 0.45, ease: "back.out(2.2)", transformOrigin: "100% 100%" }, cardAt + 0.35);
+        // 3. Push in on the fact (whole page fits until then), then the marker sweeps each line.
+        tl.fromTo("#ft-page", { x: 0, y: 0, scale: s0 }, { x: tx, y: ty, scale: S, duration: 1.3, ease: "power3.inOut" }, cardAt + 0.8);
+        tl.fromTo(marks, { scaleX: 0 }, { scaleX: 1, duration: 0.45, ease: "power2.out", stagger: 0.22 }, markAt);
+
+        // Hold: caption and source float gently together so it never looks frozen.
+        const breaths = Math.max(0, Math.floor((outAt - 1.2) / 1.8));
+        if (breaths > 0) {
+          tl.to("#ft-stage", { y: -6, duration: 0.9, ease: "sine.inOut", yoyo: true, repeat: breaths * 2 - 1 }, 1.2);
+        }
+
+        // 4. Out together: source first, the caption a beat after, then the footage comes back.
+        tl.to(["#ft-window", "#ft-pill"], { autoAlpha: 0, scale: 0.92, y: -24, duration: 0.4, ease: "power2.in" }, outAt);
+        tl.to("#ft-bubble", { autoAlpha: 0, scale: 0.9, y: -20, duration: 0.35, ease: "power2.in" }, outAt + 0.08);
+        tl.to(["#ft-dot1", "#ft-dot2"], { autoAlpha: 0, scale: 0, duration: 0.25, ease: "power2.in", stagger: 0.05 }, outAt + 0.08);
+        tl.to("#ft-scrim", { autoAlpha: 0, duration: 0.45, ease: "power1.in" }, outAt);
+        tl.set({}, {}, outAt + 0.55); // short empty tail so the exit always completes
+
+        window.__timelines = window.__timelines || {};
+        window.__timelines["fact-talk"] = tl;
+        tl.seek(0);
+      })();
+    </script>
+  </body>
+</html>

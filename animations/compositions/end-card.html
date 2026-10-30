@@ -1,0 +1,158 @@
+<!doctype html>
+<!--
+  CutCrew — END CARD (reusable template)
+  Transparent overlay over the final hero shot of the item. A purple card rises with a
+  thank-you, then brand purple floods the frame and the message settles in the centre.
+  Never asks viewers to like / subscribe (house style). Variables:
+    thanks   headline  ("Thanks for watching!")
+    line     sub line  ("See you in the next unboxing")
+    channel  pill      ("HOBI NAZAR")
+    hold     seconds the full purple screen stays at the end (4)
+  Length = 4.6 s + hold (house 4 s = 8.6 s); the sound fades out over those seconds.
+  (Never name a variable after a CSS custom property such as "purple": variables are also exposed as CSS vars.)
+  Render (4K, transparent):
+    npx hyperframes render -c compositions/end-card.html --format webm --resolution 4k \
+      -o ../projects/<name>/assets/end-card.webm
+-->
+<html
+  lang="en"
+  data-composition-variables='[
+    {"id":"thanks","type":"string","label":"Headline","default":"Thanks for watching!"},
+    {"id":"line","type":"string","label":"Sub line","default":"See you in the next unboxing"},
+    {"id":"channel","type":"string","label":"Channel pill","default":"HOBI NAZAR"},
+    {"id":"hold","type":"number","label":"Full purple screen (s)","default":4,"min":1,"max":10,"step":0.1,"unit":"s"}
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  </head>
+  <body>
+    <style>
+      @font-face {
+        font-family: "HN Display";
+        src: url("/assets/fonts/SegUIVar.ttf") format("truetype");
+        font-weight: 300 900;
+      }
+      @font-face {
+        font-family: "HN Label";
+        src: url("/assets/fonts/bahnschrift.ttf") format("truetype");
+        font-weight: 300 700;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+
+      #end-card {
+        --purple: #5a46d6;
+        --purple-deep: #3d2ea8;
+        --paper: #ffffff;
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      #ec-scrim {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(16, 9, 44, 0) 45%, rgba(16, 9, 44, 0.6) 100%);
+      }
+      #ec-flood {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(120% 90% at 50% 45%, var(--purple) 0%, var(--purple-deep) 100%);
+        transform-origin: 50% 100%;
+      }
+      #ec-stage {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center; /* card rests 300px below centre (under the item), rides up for the finish */
+      }
+      #ec-card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        padding: 34px 84px 40px;
+        border-radius: 32px;
+        background: linear-gradient(180deg, var(--purple) 0%, var(--purple-deep) 100%);
+        box-shadow: 0 26px 70px rgba(12, 6, 40, 0.45);
+      }
+      #ec-pill {
+        display: block;
+        font-family: "HN Label", sans-serif;
+        font-weight: 600;
+        font-size: 24px;
+        letter-spacing: 0.24em;
+        color: var(--purple);
+        background: var(--paper);
+        padding: 8px 18px 7px 23px;
+        border-radius: 999px;
+      }
+      .ec-mask { display: block; overflow: hidden; padding-bottom: 8px; }
+      #ec-thanks {
+        display: block;
+        font-family: "HN Display", sans-serif;
+        font-weight: 800;
+        font-size: 92px;
+        line-height: 1.05;
+        letter-spacing: -0.025em;
+        color: var(--paper);
+        white-space: nowrap;
+      }
+      #ec-line {
+        display: block;
+        font-family: "HN Display", sans-serif;
+        font-weight: 500;
+        font-size: 36px;
+        color: rgba(255, 255, 255, 0.86);
+      }
+    </style>
+
+    <div id="end-card" data-composition-id="end-card" data-width="1920" data-height="1080">
+      <div id="ec-scrim"></div>
+      <div id="ec-flood"></div>
+      <div id="ec-stage">
+        <div id="ec-card">
+          <span id="ec-pill" data-var-text="channel">HOBI NAZAR</span>
+          <span class="ec-mask" data-layout-allow-overflow="true"><span id="ec-thanks" data-var-text="thanks">Thanks for watching!</span></span>
+          <span class="ec-mask" data-layout-allow-overflow="true"><span id="ec-line" data-var-text="line">See you in the next unboxing</span></span>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const tl = gsap.timeline({ paused: true });
+        const REST = 300; // px below the frame centre while the hero shot is visible
+
+        // 0.0-1.4  the hero shot darkens slightly at the bottom; the card rises in.
+        tl.fromTo("#ec-scrim", { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.8, ease: "sine.out" }, 0);
+        tl.fromTo("#ec-card",
+          { autoAlpha: 0, y: REST + 140, scale: 0.94 },
+          { autoAlpha: 1, y: REST, scale: 1, duration: 0.8, ease: "expo.out" }, 0.25);
+        tl.fromTo("#ec-pill", { autoAlpha: 0, scale: 0.4 }, { autoAlpha: 1, scale: 1, duration: 0.5, ease: "back.out(2.4)" }, 0.55);
+        tl.fromTo("#ec-thanks", { yPercent: 110 }, { yPercent: 0, duration: 0.6, ease: "power3.out" }, 0.62);
+        tl.fromTo("#ec-line", { yPercent: 120 }, { yPercent: 0, duration: 0.55, ease: "power3.out" }, 0.8);
+
+        // 3.6-4.6  brand purple floods up from the bottom; the card rides up to the centre
+        // and its own fill melts into the flood, leaving just the words.
+        tl.fromTo("#ec-flood", { scaleY: 0 }, { scaleY: 1, duration: 1.0, ease: "power3.inOut" }, 3.6);
+        tl.to("#ec-card", { y: 0, duration: 1.0, ease: "power3.inOut" }, 3.6);
+        tl.to("#ec-card", { boxShadow: "0 0 0 rgba(12, 6, 40, 0)", duration: 0.6, ease: "sine.out" }, 4.0);
+
+        // 4.6-end  the full purple screen stays `hold` seconds (house: 4) while the sound fades out;
+        // the words push in very slowly so the last seconds never look frozen.
+        const purple = Math.max(1, Number(((window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {}).hold) || 4);
+        tl.to("#ec-card", { scale: 1.035, duration: purple, ease: "sine.inOut" }, 4.6);
+        tl.set({}, {}, 4.6 + purple);
+
+        window.__timelines["end-card"] = tl;
+        tl.seek(0);
+      })();
+    </script>
+  </body>
+</html>

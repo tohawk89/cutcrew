@@ -1,0 +1,6 @@
+{
+  "name": "studio-crew",
+  "version": "0.1.0",
+  "description": "Pixel-art studio crew pane for the video editor: each pipeline step is a character that works and hands the video on; also guards raw/ and trims noisy render logs",
+  "types": "./types/index.d.ts"
+}

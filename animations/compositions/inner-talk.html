@@ -1,0 +1,142 @@
+<!doctype html>
+<!--
+  CutCrew — INNER TALK caption (reusable template)
+  Transparent overlay, shown over a calm moment (empty mat / still shot) so it never hides
+  the action. A short thought from the user about the moment on screen, in a
+  thought bubble at the top of the frame. Words come from the user, never invented
+  (STYLE.md → Captions). Per use, change only the variables:
+    text  the thought                 ("Actually, I just found out…")
+    hold  seconds fully on screen     (5)
+  Render (4K, transparent):
+    npx hyperframes render -c compositions/inner-talk.html --format webm --resolution 4k \
+      --variables '{"text":"…","hold":5}' -o ../projects/<name>/assets/inner-talk-<n>.webm
+-->
+<html
+  lang="en"
+  data-composition-variables='[
+    {"id":"text","type":"string","label":"Thought","default":"Actually, I just found out there were cards inside the box after unboxing!"},
+    {"id":"hold","type":"number","label":"Hold (s)","default":5,"min":1.5,"max":20,"step":0.1,"unit":"s"}
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  </head>
+  <body>
+    <style>
+      @font-face {
+        font-family: "HN Display";
+        src: url("/assets/fonts/SegUIVar.ttf") format("truetype");
+        font-weight: 300 900;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+
+      #inner-talk {
+        --purple: #5a46d6;
+        --purple-deep: #3d2ea8;
+        --ink: #1d1638;
+        --paper: #ffffff;
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding-top: 48px; /* top of the frame: hands work lower down */
+      }
+      #it-float { position: relative; display: block; }
+      #it-bubble {
+        position: relative;
+        display: flex;
+        align-items: stretch;
+        gap: 22px;
+        max-width: 1150px;
+        padding: 24px 42px 27px 24px;
+        background: var(--paper);
+        border-radius: 28px;
+        box-shadow: 0 22px 60px rgba(18, 10, 52, 0.36), 0 4px 12px rgba(18, 10, 52, 0.2);
+      }
+      #it-bar {
+        width: 10px;
+        flex: none;
+        border-radius: 5px;
+        background: linear-gradient(180deg, var(--purple) 0%, var(--purple-deep) 100%);
+        transform-origin: 50% 0%;
+      }
+      #it-text {
+        display: block;
+        font-family: "HN Display", sans-serif;
+        font-weight: 700;
+        font-size: 46px;
+        line-height: 1.16;
+        letter-spacing: -0.015em;
+        color: var(--ink);
+        text-wrap: balance;
+      }
+      #it-text .w { display: inline-block; white-space: pre; }
+      /* thought-bubble trail under the card */
+      .it-dot {
+        position: absolute;
+        border-radius: 50%;
+        background: var(--paper);
+        box-shadow: 0 10px 26px rgba(18, 10, 52, 0.3);
+      }
+      #it-dot1 { width: 28px; height: 28px; left: 74px; bottom: -40px; }
+      #it-dot2 { width: 16px; height: 16px; left: 50px; bottom: -68px; }
+    </style>
+
+    <div id="inner-talk" data-composition-id="inner-talk" data-width="1920" data-height="1080">
+      <div id="it-float">
+        <div id="it-bubble">
+          <div id="it-bar"></div>
+          <span id="it-text"></span>
+        </div>
+        <div class="it-dot" id="it-dot1"></div>
+        <div class="it-dot" id="it-dot2"></div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const vars = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+        const hold = Math.max(1.5, Number(vars.hold) || 5);
+
+        // Split the thought into words so it can "think" itself onto the card.
+        // (not data-var-text: the runtime would overwrite the word spans built here)
+        const el = document.getElementById("it-text");
+        const text = String(vars.text || "Actually, I just found out there were cards inside the box after unboxing!");
+        const words = text.trim().split(/\s+/);
+        el.innerHTML = words.map((w) => '<span class="w">' + w.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</span>").join(" ");
+
+        const tl = gsap.timeline({ paused: true });
+
+        // In: the trail puffs up, then the bubble pops in and the words appear.
+        tl.fromTo("#it-dot2", { autoAlpha: 0, scale: 0 }, { autoAlpha: 1, scale: 1, duration: 0.25, ease: "back.out(3)" }, 0.1);
+        tl.fromTo("#it-dot1", { autoAlpha: 0, scale: 0 }, { autoAlpha: 1, scale: 1, duration: 0.25, ease: "back.out(3)" }, 0.2);
+        tl.fromTo("#it-bubble",
+          { autoAlpha: 0, y: 30, scale: 0.85, rotation: -2.5 },
+          { autoAlpha: 1, y: 0, scale: 1, rotation: -1, duration: 0.6, ease: "back.out(1.8)", transformOrigin: "10% 100%" }, 0.3);
+        tl.fromTo("#it-bar", { scaleY: 0 }, { scaleY: 1, duration: 0.45, ease: "power3.out" }, 0.5);
+        tl.fromTo("#it-text .w", { autoAlpha: 0, y: 14 },
+          { autoAlpha: 1, y: 0, duration: 0.3, ease: "power2.out", stagger: 0.06 }, 0.55);
+
+        // Hold: a gentle float so it never looks frozen (finite, ends before the exit).
+        const inEnd = 0.9, outAt = inEnd + hold;
+        const breaths = Math.max(0, Math.floor((outAt - 1.2) / 1.6));
+        if (breaths > 0) {
+          tl.to("#it-float", { y: -6, duration: 0.8, ease: "sine.inOut", yoyo: true, repeat: breaths * 2 - 1 }, 1.2);
+        }
+
+        // Out: bubble and trail shrink away.
+        tl.to("#it-bubble", { autoAlpha: 0, scale: 0.9, y: -20, duration: 0.35, ease: "power2.in" }, outAt);
+        tl.to(["#it-dot1", "#it-dot2"], { autoAlpha: 0, scale: 0, duration: 0.25, ease: "power2.in", stagger: 0.05 }, outAt);
+        tl.set({}, {}, outAt + 0.5); // short empty tail so the exit always completes
+
+        window.__timelines["inner-talk"] = tl;
+        tl.seek(0);
+      })();
+    </script>
+  </body>
+</html>

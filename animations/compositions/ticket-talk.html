@@ -1,0 +1,481 @@
+<!doctype html>
+<!--
+  CutCrew — TICKET TALK (reusable template): a story caption printed on a concert-ticket stub,
+  optionally joined by its source (same browser window as fact-talk.html), optionally stamped.
+  Made for concert / tour videos (first use: MAMAMOO 4WARD in Kuala Lumpur, 2026-10-20).
+  Transparent overlay. The ticket slides in, its words print on, and a sheen runs across it.
+  With a source: the window joins after the caption is read, pushes in, the marker sweeps the
+  lines. With stamps: SOLD OUT stamps slam onto the page, then the caption swaps to `text2`.
+  Out: the stub tears off along the perforation and the ticket drops away.
+  Variables (grab.py prints shot/rects/vw/vh/domain ready to paste):
+    text     the caption, the user's own words
+    text2    optional second caption that replaces the first after the stamps ("" = none)
+    kicker   small line on the ticket                       ("MAMAMOO · 4WARD IN KUALA LUMPUR")
+    stub1/stub2/stub3  the three lines on the stub           ("4WARD" / "KL" / "10.10")
+    layout   top (caption only) | below | above | side
+    shot, rects, vw, vh, domain, label   the source page (shot "" = caption only)
+    winW     source window width in px (1000); aspect = window width / height (1.6)
+    stamps   JSON [{"x","y","w","h","rot"}] in page px; stampText ("SOLD OUT")
+    cardAt   seconds before the source joins (0 = auto from the caption's length)
+    hold     seconds everything stays readable at the end (4)
+  Render (4K, transparent):
+    npx hyperframes render -c compositions/ticket-talk.html --format webm --resolution 4k \
+      --variables '{"text":"…","layout":"top","hold":3}' -o ../projects/<name>/assets/ticket-<n>.webm
+-->
+<html
+  lang="en"
+  data-composition-variables='[
+    {"id":"text","type":"string","label":"Caption","default":"MAMAMOO is coming to Kuala Lumpur for the 2nd time this 10.10.2026…"},
+    {"id":"text2","type":"string","label":"Second caption (after stamps)","default":""},
+    {"id":"kicker","type":"string","label":"Ticket kicker","default":"MAMAMOO · 4WARD IN KUALA LUMPUR"},
+    {"id":"stub1","type":"string","label":"Stub line 1","default":"4WARD"},
+    {"id":"stub2","type":"string","label":"Stub line 2","default":"KL"},
+    {"id":"stub3","type":"string","label":"Stub line 3","default":"10.10"},
+    {"id":"layout","type":"string","label":"Layout (top / below / above / side)","default":"top"},
+    {"id":"shot","type":"string","label":"Screenshot (empty = caption only)","default":""},
+    {"id":"rects","type":"string","label":"Fact line boxes (JSON)","default":"[]"},
+    {"id":"vw","type":"number","label":"Page width","default":1440,"min":320,"max":4000,"step":1},
+    {"id":"vh","type":"number","label":"Page height","default":900,"min":320,"max":4000,"step":1},
+    {"id":"domain","type":"string","label":"Website","default":"says.com"},
+    {"id":"label","type":"string","label":"Pill label","default":"SOURCE"},
+    {"id":"winW","type":"number","label":"Window width (px)","default":1000,"min":400,"max":1600,"step":1},
+    {"id":"aspect","type":"number","label":"Window aspect (w/h)","default":1.6,"min":0.5,"max":3,"step":0.01},
+    {"id":"stamps","type":"string","label":"Stamps (JSON, page px)","default":"[]"},
+    {"id":"stampText","type":"string","label":"Stamp text","default":"SOLD OUT"},
+    {"id":"cardAt","type":"number","label":"Source joins at (s, 0 = auto)","default":0,"min":0,"max":10,"step":0.1,"unit":"s"},
+    {"id":"hold","type":"number","label":"Hold at the end (s)","default":4,"min":1,"max":20,"step":0.1,"unit":"s"}
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  </head>
+  <body>
+    <style>
+      @font-face {
+        font-family: "HN Display";
+        src: url("/assets/fonts/SegUIVar.ttf") format("truetype");
+        font-weight: 300 900;
+      }
+      @font-face {
+        font-family: "HN Label";
+        src: url("/assets/fonts/bahnschrift.ttf") format("truetype");
+        font-weight: 300 700;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+
+      #ticket-talk {
+        --purple: #5a46d6;
+        --purple-deep: #3d2ea8;
+        --purple-ink: #2a1f7a;
+        --purple-soft: #ece9fb;
+        --gold: #ffd76a;
+        --ink: #1d1638;
+        --paper: #ffffff;
+        --stamp: #e0323c;
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+      #tt-scrim {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse at var(--scrim-at, 50% 55%), rgba(18, 10, 52, 0.5) 0%, rgba(18, 10, 52, 0.22) 60%, rgba(18, 10, 52, 0) 100%);
+      }
+      #tt-stage { position: absolute; inset: 0; display: flex; align-items: center; }
+      #tt-stage.layout-top { flex-direction: column; justify-content: flex-start; padding-top: 52px; }
+      #tt-stage.layout-below { flex-direction: column; justify-content: flex-start; padding-top: 48px; gap: 58px; }
+      #tt-stage.layout-above { flex-direction: column-reverse; justify-content: flex-start; padding-bottom: 48px; gap: 58px; }
+      #tt-stage.layout-side { flex-direction: row; justify-content: center; gap: 80px; }
+
+      /* ---- the ticket ---- */
+      #tt-ticket {
+        position: relative;
+        display: flex;
+        flex: none;
+        filter: drop-shadow(0 20px 34px rgba(18, 10, 52, 0.42)) drop-shadow(0 4px 8px rgba(18, 10, 52, 0.25));
+      }
+      #tt-body, #tt-stub {
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(135deg, var(--purple) 0%, var(--purple-deep) 100%);
+        /* the two notches of the perforation are real cut-outs */
+        -webkit-mask: radial-gradient(circle 15px at var(--nx) 0, transparent 14px, #000 15px) top / 100% 51% no-repeat,
+                      radial-gradient(circle 15px at var(--nx) 100%, transparent 14px, #000 15px) bottom / 100% 51% no-repeat;
+        mask: radial-gradient(circle 15px at var(--nx) 0, transparent 14px, #000 15px) top / 100% 51% no-repeat,
+              radial-gradient(circle 15px at var(--nx) 100%, transparent 14px, #000 15px) bottom / 100% 51% no-repeat;
+      }
+      #tt-body { --nx: 100%; border-radius: 22px 0 0 22px; padding: 22px 40px 26px 36px; max-width: 1080px; }
+      #tt-stub {
+        --nx: 0%;
+        border-radius: 0 22px 22px 0;
+        width: 150px;
+        flex: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        background: linear-gradient(135deg, #6d5be3 0%, var(--purple) 100%);
+      }
+      /* perforation: a dotted line just inside the stub */
+      #tt-stub::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 18px;
+        bottom: 18px;
+        border-left: 4px dotted rgba(255, 255, 255, 0.55);
+      }
+      #tt-stage.layout-side #tt-body { max-width: 560px; }
+      #tt-kicker {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-family: "HN Label", sans-serif;
+        font-weight: 600;
+        font-size: 19px;
+        letter-spacing: 0.22em;
+        color: rgba(255, 255, 255, 0.72);
+        margin-bottom: 10px;
+        white-space: nowrap;
+      }
+      #tt-kicker i { width: 9px; height: 9px; border-radius: 50%; background: var(--gold); flex: none; }
+      #tt-lines { display: grid; }
+      #tt-lines > span { grid-area: 1 / 1; }
+      .tt-text {
+        display: block;
+        font-family: "HN Display", sans-serif;
+        font-weight: 700;
+        font-size: 46px;
+        line-height: 1.16;
+        letter-spacing: -0.012em;
+        color: var(--paper);
+        text-wrap: balance;
+      }
+      .tt-text .w { display: inline-block; white-space: pre; }
+      .tt-text .hl { color: var(--gold); }
+      .tt-stubline { font-family: "HN Label", sans-serif; color: var(--paper); line-height: 1; white-space: nowrap; }
+      #tt-stub1 { font-weight: 700; font-size: 30px; letter-spacing: 0.06em; }
+      #tt-stub2 { font-weight: 600; font-size: 22px; letter-spacing: 0.3em; color: var(--gold); margin-top: 6px; }
+      #tt-stub3 { font-weight: 600; font-size: 22px; letter-spacing: 0.12em; opacity: 0.8; margin-top: 6px; }
+      #tt-sheen {
+        position: absolute;
+        top: -20%;
+        left: 0;
+        width: 180px;
+        height: 140%;
+        background: linear-gradient(100deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.28) 50%, rgba(255, 255, 255, 0) 100%);
+        transform: rotate(14deg);
+        pointer-events: none;
+      }
+
+      /* ---- source (fact-card look) ---- */
+      #tt-card { position: relative; display: block; flex: none; }
+      #tt-window {
+        position: relative;
+        display: block;
+        border-radius: 24px;
+        overflow: hidden;
+        background: var(--paper);
+        box-shadow: 0 30px 80px rgba(18, 10, 52, 0.45), 0 6px 16px rgba(18, 10, 52, 0.25);
+      }
+      #tt-bar-top {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        height: 56px;
+        padding: 0 22px;
+        background: var(--purple-soft);
+        border-bottom: 2px solid #d9d3f7;
+      }
+      #tt-dots { display: flex; gap: 9px; flex: none; }
+      .tt-wdot { width: 14px; height: 14px; border-radius: 50%; background: #c9c1f3; }
+      .tt-wdot:first-child { background: var(--purple); }
+      #tt-url {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        flex: 1;
+        height: 36px;
+        padding: 0 18px;
+        border-radius: 18px;
+        background: var(--paper);
+        font-family: "HN Display", sans-serif;
+        font-weight: 600;
+        font-size: 20px;
+        color: var(--ink);
+      }
+      #tt-url svg { width: 16px; height: 16px; flex: none; }
+      #tt-view { position: relative; display: block; overflow: hidden; background: #fff; }
+      #tt-page { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+      #tt-img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+      .tt-mark {
+        position: absolute;
+        display: block;
+        border-radius: 4px;
+        background: rgba(90, 70, 214, 0.24);
+        border-bottom: 4px solid var(--purple);
+        box-shadow: 0 0 0 3px rgba(90, 70, 214, 0.4);
+        transform-origin: 0% 50%;
+      }
+      .tt-stamp {
+        position: absolute;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 9px solid var(--stamp);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.82);
+        box-shadow: inset 0 0 0 5px rgba(255, 255, 255, 0.9), inset 0 0 0 10px var(--stamp);
+        font-family: "HN Label", sans-serif;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: var(--stamp);
+        white-space: nowrap;
+      }
+      #tt-pill {
+        position: absolute;
+        right: 30px;
+        top: -28px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 52px;
+        padding: 0 24px 0 20px;
+        border-radius: 26px;
+        background: linear-gradient(180deg, var(--purple) 0%, var(--purple-deep) 100%);
+        box-shadow: 0 10px 26px rgba(18, 10, 52, 0.35);
+        font-family: "HN Label", sans-serif;
+        font-weight: 700;
+        font-size: 24px;
+        letter-spacing: 0.08em;
+        color: var(--paper);
+        white-space: nowrap;
+        z-index: 2;
+      }
+      #tt-pill svg { width: 24px; height: 24px; flex: none; }
+      #tt-pill-domain { font-family: "HN Display", sans-serif; font-weight: 600; letter-spacing: 0; opacity: 0.85; }
+    </style>
+
+    <div id="ticket-talk" data-composition-id="ticket-talk" data-width="1920" data-height="1080">
+      <div id="tt-scrim"></div>
+      <div id="tt-stage" class="layout-top">
+        <div id="tt-ticket">
+          <div id="tt-body">
+            <div id="tt-kicker"><i></i><span id="tt-kicker-text"></span></div>
+            <div id="tt-lines">
+              <span class="tt-text" id="tt-text1"></span>
+              <span class="tt-text" id="tt-text2"></span>
+            </div>
+            <div id="tt-sheen"></div>
+          </div>
+          <div id="tt-stub">
+            <span class="tt-stubline" id="tt-stub1"></span>
+            <span class="tt-stubline" id="tt-stub2"></span>
+            <span class="tt-stubline" id="tt-stub3"></span>
+          </div>
+        </div>
+        <div id="tt-card">
+          <div id="tt-pill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <span id="tt-pill-label">SOURCE</span>
+            <span id="tt-pill-domain"></span>
+          </div>
+          <div id="tt-window">
+            <div id="tt-bar-top">
+              <div id="tt-dots"><span class="tt-wdot"></span><span class="tt-wdot"></span><span class="tt-wdot"></span></div>
+              <div id="tt-url">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#5a46d6" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                <span id="tt-url-text"></span>
+              </div>
+            </div>
+            <div id="tt-view">
+              <div id="tt-page">
+                <img id="tt-img" alt="" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const vars = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+        const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+        const shot = String(vars.shot || "");
+        const hasCard = shot.length > 0;
+        let layout = String(vars.layout || "top");
+        if (!["top", "below", "above", "side"].includes(layout)) layout = "top";
+        if (!hasCard) layout = "top";
+        const hold = Math.max(1, Number(vars.hold) || 4);
+
+        const stage = document.getElementById("tt-stage");
+        stage.className = "layout-" + layout;
+        document.getElementById("tt-scrim").style.setProperty("--scrim-at", { top: "50% 10%", below: "50% 58%", above: "50% 42%", side: "60% 50%" }[layout]);
+        if (!hasCard) {
+          document.getElementById("tt-card").style.display = "none";
+          document.getElementById("tt-scrim").style.display = "none";
+        }
+
+        // Words (a word wrapped in *stars* prints in gold).
+        const fill = (el, text) => {
+          const words = text.trim().split(/\s+/).filter(Boolean);
+          el.innerHTML = words.map((w) => {
+            const hl = /^\*.*\*[.,!?…:]*$/.test(w);
+            const clean = hl ? w.replace(/\*/g, "") : w;
+            return '<span class="w' + (hl ? " hl" : "") + '">' + esc(clean) + "</span>";
+          }).join(" ");
+          return words.length;
+        };
+        const n1 = fill(document.getElementById("tt-text1"), String(vars.text || "MAMAMOO is coming to Kuala Lumpur for the 2nd time this 10.10.2026…"));
+        const text2 = String(vars.text2 || "");
+        const n2 = text2 ? fill(document.getElementById("tt-text2"), text2) : 0;
+        document.getElementById("tt-kicker-text").textContent = String(vars.kicker ?? "MAMAMOO · 4WARD IN KUALA LUMPUR");
+        if (!String(vars.kicker ?? "x")) document.getElementById("tt-kicker").style.display = "none";
+        document.getElementById("tt-stub1").textContent = String(vars.stub1 ?? "4WARD");
+        document.getElementById("tt-stub2").textContent = String(vars.stub2 ?? "KL");
+        document.getElementById("tt-stub3").textContent = String(vars.stub3 ?? "10.10");
+
+        // Source window.
+        const vw = Number(vars.vw) || 1440, vh = Number(vars.vh) || 900;
+        const W = Number(vars.winW) || 1000, H = Math.round(W / (Number(vars.aspect) || 1.6));
+        let rects = [], stamps = [];
+        try { rects = JSON.parse(vars.rects || "[]"); } catch (e) { rects = []; }
+        try { stamps = JSON.parse(vars.stamps || "[]"); } catch (e) { stamps = []; }
+        const page = document.getElementById("tt-page");
+        let marks = [], stampEls = [], s0 = 1, S = 1, tx = 0, ty = 0;
+        if (hasCard) {
+          const domain = String(vars.domain || "");
+          document.getElementById("tt-window").style.width = W + "px";
+          const view = document.getElementById("tt-view");
+          view.style.width = W + "px";
+          view.style.height = H + "px";
+          document.getElementById("tt-pill-label").textContent = String(vars.label || "SOURCE");
+          document.getElementById("tt-pill-domain").textContent = domain;
+          document.getElementById("tt-url-text").textContent = domain;
+          document.getElementById("tt-img").src = shot;
+          page.style.width = vw + "px";
+          page.style.height = vh + "px";
+          marks = rects.map((r) => {
+            const m = document.createElement("span");
+            m.className = "tt-mark";
+            m.style.left = r.x - 6 + "px";
+            m.style.top = r.y - 4 + "px";
+            m.style.width = r.w + 12 + "px";
+            m.style.height = r.h + 8 + "px";
+            page.appendChild(m);
+            return m;
+          });
+          const stampText = String(vars.stampText || "SOLD OUT");
+          stampEls = stamps.map((st) => {
+            const el = document.createElement("span");
+            el.className = "tt-stamp";
+            el.textContent = stampText;
+            el.style.left = st.x - st.w / 2 + "px";
+            el.style.top = st.y - st.h / 2 + "px";
+            el.style.width = st.w + "px";
+            el.style.height = st.h + "px";
+            el.style.fontSize = Math.round(st.h * 0.46) + "px";
+            el.dataset.rot = String(st.rot ?? -8);
+            page.appendChild(el);
+            return el;
+          });
+          // Fit the whole page in the window (contain), then push in on the marks, never past the edge.
+          s0 = Math.min(W / vw, H / vh);
+          const pageW = vw * s0, pageH = vh * s0;
+          const x0 = (W - pageW) / 2, y0 = (H - pageH) / 2;
+          if (rects.length) {
+            let bx = Math.min(...rects.map((r) => r.x)) - 60, by = Math.min(...rects.map((r) => r.y)) - 40;
+            let bw = Math.max(...rects.map((r) => r.x + r.w)) + 60 - bx, bh = Math.max(...rects.map((r) => r.y + r.h)) + 40 - by;
+            const minW = 0.45 * vw;
+            if (bw < minW) { bx = Math.max(0, Math.min(vw - minW, bx - (minW - bw) / 2)); bw = minW; }
+            const z = Math.min(2.0, Math.max(1, Math.min((0.92 * W) / (bw * s0), (0.55 * H) / (bh * s0))));
+            S = s0 * z;
+            tx = vw * S <= W ? (W - vw * S) / 2 : clamp(W / 2 - (bx + bw / 2) * S, W - vw * S, 0);
+            ty = vh * S <= H ? (H - vh * S) / 2 : clamp(H / 2 - (by + bh / 2) * S, H - vh * S, 0);
+          } else { S = s0; tx = x0; ty = y0; }
+          gsap.set(page, { x: x0, y: y0, scale: s0 });
+          page.dataset.x0 = x0; page.dataset.y0 = y0;
+        }
+
+        // Timing.
+        const wordsEnd = 0.75 + 0.06 * (n1 - 1) + 0.3;
+        const readEnd = wordsEnd + clamp(0.18 * n1, 1.0, 3);
+        const cardAt = Number(vars.cardAt) > 0 ? Number(vars.cardAt) : Math.max(2.2, readEnd);
+        const markAt = cardAt + 2.1;
+        const markEnd = markAt + 0.45 + 0.22 * Math.max(0, marks.length - 1);
+        const stampAt = markEnd + 0.7;
+        const stampEnd = stampAt + 0.45 * Math.max(0, stampEls.length - 1) + 0.35;
+        const swapAt = n2 ? (stampEls.length ? stampEnd + 0.5 : (hasCard ? markEnd + 0.6 : readEnd)) : null;
+        const lastIn = swapAt !== null ? swapAt + 0.4 + 0.06 * n2 : (hasCard ? (stampEls.length ? stampEnd : markEnd) : wordsEnd);
+        const outAt = lastIn + hold;
+
+        const tl = gsap.timeline({ paused: true });
+        const enter = { top: { y: -50 }, below: { y: -50 }, above: { y: 50 }, side: { x: -70 } }[layout];
+
+        // 1. The ticket slides in, slightly turned, and settles; words print on; a sheen runs over it.
+        tl.fromTo("#tt-ticket",
+          { autoAlpha: 0, ...enter, rotation: -6, scale: 0.92 },
+          { autoAlpha: 1, x: 0, y: 0, rotation: -1.2, scale: 1, duration: 0.7, ease: "back.out(1.6)" }, 0.15);
+        tl.fromTo("#tt-kicker", { autoAlpha: 0, x: -14 }, { autoAlpha: 1, x: 0, duration: 0.4, ease: "power2.out" }, 0.5);
+        tl.fromTo(".tt-stubline", { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.35, ease: "power2.out", stagger: 0.08 }, 0.55);
+        tl.fromTo("#tt-text1 .w", { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.28, ease: "power2.out", stagger: 0.06 }, 0.75);
+        if (n2) tl.set("#tt-text2 .w", { autoAlpha: 0 }, 0);
+        tl.fromTo("#tt-sheen", { x: -260 }, { x: 1400, duration: 1.1, ease: "power1.inOut" }, wordsEnd);
+
+        // 2. Source joins, pushes in, marker sweeps the lines.
+        if (hasCard) {
+          const x0 = Number(page.dataset.x0), y0 = Number(page.dataset.y0);
+          const wEnter = { below: { y: 60 }, above: { y: -60 }, side: { x: 80 } }[layout] || { y: 60 };
+          tl.fromTo("#tt-scrim", { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, ease: "power1.out" }, cardAt - 0.1);
+          tl.fromTo("#tt-window",
+            { autoAlpha: 0, ...wEnter, scale: 0.9, rotation: 1.5 },
+            { autoAlpha: 1, x: 0, y: 0, scale: 1, rotation: 0, duration: 0.7, ease: "back.out(1.5)" }, cardAt);
+          tl.fromTo("#tt-pill",
+            { autoAlpha: 0, y: 16, scale: 0.8 },
+            { autoAlpha: 1, y: 0, scale: 1, duration: 0.45, ease: "back.out(2.2)", transformOrigin: "100% 100%" }, cardAt + 0.35);
+          tl.fromTo(page, { x: x0, y: y0, scale: s0 }, { x: tx, y: ty, scale: S, duration: 1.3, ease: "power3.inOut" }, cardAt + 0.8);
+          if (marks.length) tl.fromTo(marks, { scaleX: 0 }, { scaleX: 1, duration: 0.45, ease: "power2.out", stagger: 0.22 }, markAt);
+          // 3. Stamps slam down one by one; the window jolts with each.
+          stampEls.forEach((el, i) => {
+            const at = stampAt + 0.45 * i;
+            const rot = Number(el.dataset.rot);
+            tl.fromTo(el, { autoAlpha: 0, scale: 2.4, rotation: rot - 10 },
+              { autoAlpha: 1, scale: 1, rotation: rot, duration: 0.26, ease: "power4.in" }, at);
+            tl.to("#tt-window", { x: 5, y: 4, duration: 0.05, ease: "power1.out", yoyo: true, repeat: 3 }, at + 0.26);
+          });
+        }
+
+        // 4. Caption swap: the first line lifts away, the second prints on.
+        if (n2) {
+          tl.to("#tt-text1 .w", { autoAlpha: 0, y: -12, duration: 0.22, ease: "power2.in", stagger: 0.02 }, swapAt);
+          tl.fromTo("#tt-text2 .w", { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.28, ease: "power2.out", stagger: 0.06 }, swapAt + 0.3);
+          tl.fromTo("#tt-sheen", { x: -260 }, { x: 1400, duration: 1.1, ease: "power1.inOut", immediateRender: false }, swapAt + 0.4 + 0.06 * n2);
+        }
+
+        // Hold: a gentle float so nothing looks frozen (finite, ends before the exit).
+        const breaths = Math.max(0, Math.floor((outAt - 1.2) / 1.8));
+        if (breaths > 0) tl.to("#tt-stage", { y: -6, duration: 0.9, ease: "sine.inOut", yoyo: true, repeat: breaths * 2 - 1 }, 1.2);
+
+        // 5. Out: source leaves, the stub tears off along the perforation, the ticket drops away.
+        if (hasCard) {
+          tl.to(["#tt-window", "#tt-pill"], { autoAlpha: 0, scale: 0.92, y: -24, duration: 0.4, ease: "power2.in" }, outAt);
+          tl.to("#tt-scrim", { autoAlpha: 0, duration: 0.45, ease: "power1.in" }, outAt + 0.1);
+        }
+        tl.to("#tt-stub", { x: 26, y: -8, rotation: 9, duration: 0.18, ease: "power2.out", transformOrigin: "0% 100%" }, outAt + 0.05);
+        tl.to("#tt-stub", { y: -60, rotation: 18, autoAlpha: 0, duration: 0.4, ease: "power2.in" }, outAt + 0.23);
+        tl.to("#tt-body", { y: 40, rotation: -5, autoAlpha: 0, duration: 0.42, ease: "back.in(1.4)", transformOrigin: "0% 0%" }, outAt + 0.18);
+        tl.set({}, {}, outAt + 0.75); // short empty tail so the exit always completes
+
+        window.__timelines = window.__timelines || {};
+        window.__timelines["ticket-talk"] = tl;
+        tl.seek(0);
+      })();
+    </script>
+  </body>
+</html>

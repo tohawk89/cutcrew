@@ -16,11 +16,16 @@ The 7-role stack, with every paid tool swapped for a free one (except Claude Cod
 
 ## Step 1 — Install everything (one command)
 
-Open PowerShell in this folder and run:
+The one-line installer in the README clones CutCrew and runs `setup.ps1` for you. To do it by hand
+instead, open PowerShell where you want the folder and run:
 
 ```powershell
+git clone https://github.com/tohawk89/cutcrew.git
+cd cutcrew
 powershell -ExecutionPolicy Bypass -File setup.ps1
 ```
+
+Add `-WithObs` to also install OBS Studio.
 
 It installs anything missing (FFmpeg, Node.js 22+, Python), creates `.venv`, downloads the
 Parakeet model (~2.4 GB, once), and checks HyperFrames. Run it again any time something breaks
@@ -83,7 +88,7 @@ OBS recording ──► transcribe.py (Parakeet) ──► transcript .txt/.json
                                                                                    │
 HyperFrames animations (assets/*.mp4/.webm) ─────┐                                 ▼
 library music + SFX ─────────────────────────────┴──────────────► finish.py ──► renders/*-final.mp4
-                                                     (ducking, captions, -14 LUFS)
+                                          (ducking, captions, loudness from style.json)
 ```
 
 ## Step 5 — Give feedback; it's remembered

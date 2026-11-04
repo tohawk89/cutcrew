@@ -27,6 +27,7 @@ files in, and asks for an edit in plain language. You run the pipeline below.
 .venv\Scripts\python.exe scripts\audio.py master projects\<name>\renders\edl-cut.mp4 --music ...   # try sound changes alone, in seconds
 .venv\Scripts\python.exe scripts\audio.py check <file>                                          # sound report
 .venv\Scripts\python.exe scripts\grab.py URL --find "exact sentence" --out projects\<name>\assets\facts\fact-1.png   # source screenshot for a fact card
+.venv\Scripts\python.exe scripts\tokens.py --project <name>   # Claude tokens per stage (--per-video --markdown for the README table)
 ```
 
 **`/setup`** is first-time onboarding: checks the tools and interviews the user into `STYLE.md`.

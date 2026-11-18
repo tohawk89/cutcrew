@@ -39,12 +39,14 @@ $starter = @{
     "style.json"         = "defaults\style.json"
     "FEEDBACK.md"        = "defaults\FEEDBACK.md"
     "library\CREDITS.md" = "defaults\CREDITS.md"
+    "styles\explainer\STYLE.md"   = "defaults\explainer\STYLE.md"
+    "styles\explainer\style.json" = "defaults\explainer\style.json"
 }
+foreach ($dir in "projects", "library\music", "library\sfx", "styles\explainer") { New-Item -ItemType Directory -Force $dir | Out-Null }
 foreach ($file in $starter.Keys) {
     if (Test-Path $file) { Write-Host "[ok] $file (kept yours)" -ForegroundColor Green }
     else { Copy-Item $starter[$file] $file; Write-Host "[new] $file" -ForegroundColor Yellow }
 }
-foreach ($dir in "projects", "library\music", "library\sfx") { New-Item -ItemType Directory -Force $dir | Out-Null }
 
 Write-Host "`n== 3. Python environment (Parakeet transcriber) ==" -ForegroundColor Cyan
 $py = ".venv\Scripts\python.exe"

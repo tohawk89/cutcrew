@@ -17,6 +17,7 @@ projects/*
 /style.json
 /FEEDBACK.md
 library/CREDITS.md
+/styles/
 
 # --- Third-party files we may not redistribute ---
 # Music/SFX (Pixabay, YouTube Audio Library, Freesound licences forbid re-sharing the files)
@@ -33,6 +34,9 @@ animations/assets/facts/
 animations/.hyperframes/
 animations/snapshots/
 animations/renders/
+# Explainer films are built per project from projects/ (private, client logos)
+animations/explainers/
+animations/squared-explainer/
 
 # --- Any media that slips in elsewhere ---
 *.mp4

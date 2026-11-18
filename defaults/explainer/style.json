@@ -1,0 +1,58 @@
+{
+  "format": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30
+  },
+  "voice": {
+    "engine": "kokoro",
+    "voice": "af_heart",
+    "speed": 0.95,
+    "tts_python": "",
+    "hyperframes_tts": "hyperframes@0.8.172"
+  },
+  "timing": {
+    "lead": 0.4,
+    "gap": 0.3,
+    "tail": 0.6,
+    "credits": 5.0
+  },
+  "audio": {
+    "lufs": -21,
+    "music_below_lu": 15
+  },
+  "hyperframes": "hyperframes@0.9.26",
+  "font": {
+    "family": "HN Display",
+    "file": "animations/assets/fonts/SegUIVar.ttf"
+  },
+  "colors": {
+    "skin": "#F4A07F",
+    "skin_shadow": "#DE8467",
+    "hair": "#2A2D3E",
+    "problem": "#F08C3A",
+    "highlight": "#F2B630",
+    "wall": "#F1EADF",
+    "cream": "#F4F1EC",
+    "sand": "#D9C3A1",
+    "terracotta": "#B5553D",
+    "grey_text": "#6B6790"
+  },
+  "credits": [
+    [
+      "Created by",
+      "<your name>",
+      null
+    ],
+    [
+      "Made with",
+      "CutCrew",
+      "github.com/tohawk89/cutcrew"
+    ],
+    [
+      "Voice",
+      "Kokoro text-to-speech",
+      null
+    ]
+  ]
+}

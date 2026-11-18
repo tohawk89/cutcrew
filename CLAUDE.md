@@ -36,6 +36,12 @@ If `STYLE.md` or `style.json` is missing at the root, suggest `/setup` before ed
 **`/edit <project> [wishes]`** starts an edit: asks the setup questions once (captions, fact
 screenshots, music, graphics, platform), saves them to the project's `notes.md`, then runs the workflow below.
 
+**`/explainer <project> [product]`** makes an **animated explainer / montage** instead (flat cartoon scenes,
+Kokoro narrator, music, real app clip in a cartoon phone, CTA, credits). It has its **own style**,
+`styles/explainer/STYLE.md` + `style.json`, and kit, `kit/explainer/` (character, parts, film builder,
+voice, timing, render). The root `STYLE.md`/`style.json` are the **unboxing** style and do not apply to
+explainers, and explainer lessons never go into them. Worked example: `projects/squared-explainer/`.
+
 Every script has `--help`. If `.venv` is missing or broken (e.g. the folder was moved), run `setup.ps1`.
 
 ## Project layout
@@ -50,7 +56,9 @@ projects/<name>/
   edl.json        the edit: which source ranges to keep, in order
   renders/        edl-cut.mp4 (+ .srt/.json re-timed to the cut), *-final.mp4
 library/music, library/sfx   shared free audio; every file logged in library/CREDITS.md
-animations/                   HyperFrames project (one composition per graphic)
+animations/                   HyperFrames project (one composition per graphic); explainers get animations/explainers/<name>/ (not committed)
+styles/explainer/             explainer style (STYLE.md + style.json), separate from the unboxing house style
+kit/explainer/                explainer kit: character.py, parts.py, film.py, voice.py, timing.py, render.py, new.py
 ```
 
 ## Learning from feedback — do this on every video

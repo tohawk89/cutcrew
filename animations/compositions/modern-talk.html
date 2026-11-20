@@ -1,0 +1,374 @@
+<!doctype html>
+<!--
+  CutCrew — MODERN TALK (reusable template): a simple, modern caption with its source, together.
+  Transparent overlay. Same story beat as fact-talk.html (caption read alone first, then the source
+  joins, pushes in, the purple marker sweeps the sentence, both leave together), but the caption is
+  clean editorial type on a soft dark gradient instead of a thought bubble:
+      ▌ KICKER            small, letter-spaced label         ("GOING TO")
+      ▌ Bold title        the main line, words rise in        ("QWER 2nd TOUR …")
+      ── META             small detail line                   ("7 NOV 2026 · MEGA STAR ARENA")
+  First used on the QWER light stick video (2026-11-04: "simple caption style, more modern style").
+  Variables (grab.py, or a browser capture, gives shot/rects/vw/vh/domain):
+    kicker, text, meta   the three caption lines; wrap words in *stars* to tint them lilac
+    layout  side   caption left, source right   (default; the item is centre/right and dims behind)
+            below  caption top-left, source under it
+            above  source on top, caption bottom-left
+    shot, rects, vw, vh, domain, label   the source window (same look as fact-card / fact-talk)
+            shot = "none": caption only, no source (item labels, thoughts). Use layout below; length ≈ 1.3 + hold + 0.55
+    cardAt  seconds before the source joins; 0 = auto from the caption's length
+    hold    seconds both stay readable once the fact is highlighted (4)
+    zoom    max push-in on the source (2); ~1.15 for a photo + text page so the photo stays in view
+  Length ≈ cardAt + 2.6 + hold + 0.55; ffprobe the render.
+  Render (4K, transparent):
+    npx hyperframes render -c compositions/modern-talk.html --format webm --resolution 4k \
+      --variables-file ../projects/<name>/assets/vars/modern-talk-1.json -o ../projects/<name>/assets/modern-talk-1.webm
+-->
+<html
+  lang="en"
+  data-composition-variables='[
+    {"id":"kicker","type":"string","label":"Kicker","default":"GOING TO"},
+    {"id":"text","type":"string","label":"Title","default":"QWER 2nd TOUR <ROCKATION : ROCKET LAUNCH!!> IN KUALA LUMPUR"},
+    {"id":"meta","type":"string","label":"Meta line","default":"7 NOV 2026 · MEGA STAR ARENA"},
+    {"id":"layout","type":"string","label":"Layout (side / below / above)","default":"side"},
+    {"id":"shot","type":"string","label":"Screenshot","default":"assets/facts/qwer-bms-preview.jpg"},
+    {"id":"rects","type":"string","label":"Fact line boxes (JSON)","default":"[{\"x\":72,\"y\":702,\"w\":846,\"h\":39},{\"x\":72,\"y\":746,\"w\":299,\"h\":39}]"},
+    {"id":"vw","type":"number","label":"Page width","default":1440,"min":320,"max":3840,"step":1},
+    {"id":"vh","type":"number","label":"Page height","default":900,"min":320,"max":3840,"step":1},
+    {"id":"domain","type":"string","label":"Website","default":"my.bookmyshow.com"},
+    {"id":"label","type":"string","label":"Pill label","default":"SOURCE"},
+    {"id":"cardAt","type":"number","label":"Source joins at (s, 0 = auto)","default":0,"min":0,"max":10,"step":0.1,"unit":"s"},
+    {"id":"hold","type":"number","label":"Hold together (s)","default":4,"min":1.5,"max":20,"step":0.1,"unit":"s"},
+    {"id":"zoom","type":"number","label":"Max push-in on the source (x)","default":2,"min":1,"max":2,"step":0.05}
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  </head>
+  <body>
+    <style>
+      @font-face {
+        font-family: "HN Display";
+        src: url("/assets/fonts/SegUIVar.ttf") format("truetype");
+        font-weight: 300 900;
+      }
+      @font-face {
+        font-family: "HN Label";
+        src: url("/assets/fonts/bahnschrift.ttf") format("truetype");
+        font-weight: 300 700;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+
+      #modern-talk {
+        --purple: #5a46d6;
+        --purple-deep: #3d2ea8;
+        --purple-soft: #ece9fb;
+        --lilac: #c4b8ff;
+        --ink: #1d1638;
+        --paper: #ffffff;
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+      /* caption shade: from the caption's side, there from the start so white type reads on a white box */
+      #mt-shade {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(var(--shade-dir, 90deg), rgba(14, 9, 40, 0.78) 0%, rgba(14, 9, 40, 0.5) 38%, rgba(14, 9, 40, 0) 70%);
+      }
+      /* full darkening that arrives with the source */
+      #mt-scrim { position: absolute; inset: 0; background: rgba(14, 9, 40, 0.42); }
+
+      #mt-stage { position: absolute; inset: 0; display: flex; }
+      #mt-stage.layout-side { flex-direction: row; align-items: center; justify-content: center; gap: 84px; padding: 0 80px; }
+      #mt-stage.layout-below { flex-direction: column; align-items: flex-start; padding: 70px 120px 0; gap: 56px; }
+      #mt-stage.layout-above { flex-direction: column-reverse; align-items: flex-start; padding: 0 120px 70px; gap: 56px; }
+      #mt-stage.layout-below #mt-card, #mt-stage.layout-above #mt-card { align-self: center; }
+
+      /* ---- caption ---- */
+      #mt-talk { position: relative; display: flex; gap: 28px; flex: none; max-width: 660px; }
+      #mt-stage.layout-below #mt-talk, #mt-stage.layout-above #mt-talk { max-width: 1300px; }
+      #mt-accent {
+        width: 7px;
+        flex: none;
+        border-radius: 4px;
+        background: linear-gradient(180deg, #8a78ff 0%, var(--purple) 100%);
+        transform-origin: 50% 0%;
+      }
+      #mt-lines { display: flex; flex-direction: column; gap: 20px; }
+      #mt-kicker {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        font-family: "HN Label", sans-serif;
+        font-weight: 600;
+        font-size: 26px;
+        letter-spacing: 0.24em;
+        color: var(--lilac);
+      }
+      #mt-kicker-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 0 4px rgba(90, 70, 214, 0.35); flex: none; }
+      #mt-title {
+        font-family: "HN Display", sans-serif;
+        font-weight: 800;
+        font-size: 64px;
+        line-height: 1.06;
+        letter-spacing: -0.02em;
+        color: var(--paper);
+        text-wrap: balance;
+        text-shadow: 0 4px 24px rgba(10, 6, 30, 0.45);
+      }
+      #mt-stage.layout-below #mt-title, #mt-stage.layout-above #mt-title { font-size: 58px; }
+      #mt-title .w { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: 0.06em; }
+      #mt-title .wi { display: inline-block; white-space: pre; }
+      #mt-title .hi { color: var(--lilac); }
+      #mt-meta {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        font-family: "HN Label", sans-serif;
+        font-weight: 500;
+        font-size: 26px;
+        letter-spacing: 0.16em;
+        color: rgba(255, 255, 255, 0.88);
+      }
+      #mt-rule { width: 56px; height: 2px; background: rgba(255, 255, 255, 0.7); transform-origin: 0 50%; flex: none; }
+
+      /* ---- source (fact-card look) ---- */
+      #mt-card { position: relative; display: block; flex: none; }
+      #mt-window {
+        position: relative;
+        display: block;
+        border-radius: 24px;
+        overflow: hidden;
+        background: var(--paper);
+        box-shadow: 0 30px 80px rgba(10, 6, 30, 0.5), 0 6px 16px rgba(10, 6, 30, 0.28);
+      }
+      #mt-bar-top {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        height: 56px;
+        padding: 0 22px;
+        background: var(--purple-soft);
+        border-bottom: 2px solid #d9d3f7;
+      }
+      #mt-dots { display: flex; gap: 9px; flex: none; }
+      .mt-wdot { width: 14px; height: 14px; border-radius: 50%; background: #c9c1f3; }
+      .mt-wdot:first-child { background: var(--purple); }
+      #mt-url {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        flex: 1;
+        height: 36px;
+        padding: 0 18px;
+        border-radius: 18px;
+        background: var(--paper);
+        font-family: "HN Display", sans-serif;
+        font-weight: 600;
+        font-size: 20px;
+        color: var(--ink);
+      }
+      #mt-url svg { width: 16px; height: 16px; flex: none; }
+      #mt-view { position: relative; display: block; overflow: hidden; background: #fff; }
+      #mt-page { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+      #mt-img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+      .mt-mark {
+        position: absolute;
+        display: block;
+        border-radius: 4px;
+        background: rgba(90, 70, 214, 0.26);
+        border-bottom: 3px solid var(--purple);
+        box-shadow: 0 0 0 2px rgba(90, 70, 214, 0.35);
+        transform-origin: 0% 50%;
+      }
+      #mt-pill {
+        position: absolute;
+        right: 30px;
+        top: -28px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 52px;
+        padding: 0 24px 0 20px;
+        border-radius: 26px;
+        background: linear-gradient(180deg, var(--purple) 0%, var(--purple-deep) 100%);
+        box-shadow: 0 10px 26px rgba(10, 6, 30, 0.35);
+        font-family: "HN Label", sans-serif;
+        font-weight: 700;
+        font-size: 24px;
+        letter-spacing: 0.08em;
+        color: var(--paper);
+        white-space: nowrap;
+        z-index: 2;
+      }
+      #mt-pill svg { width: 24px; height: 24px; flex: none; }
+      #mt-pill-domain { font-family: "HN Display", sans-serif; font-weight: 600; letter-spacing: 0; opacity: 0.85; }
+    </style>
+
+    <div id="modern-talk" data-composition-id="modern-talk" data-width="1920" data-height="1080">
+      <div id="mt-shade"></div>
+      <div id="mt-scrim"></div>
+      <div id="mt-stage" class="layout-side">
+        <div id="mt-talk">
+          <div id="mt-accent"></div>
+          <div id="mt-lines">
+            <div id="mt-kicker"><span id="mt-kicker-dot"></span><span id="mt-kicker-text"></span></div>
+            <div id="mt-title"></div>
+            <div id="mt-meta"><span id="mt-rule"></span><span id="mt-meta-text"></span></div>
+          </div>
+        </div>
+        <div id="mt-card">
+          <div id="mt-pill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <span id="mt-pill-label">SOURCE</span>
+            <span id="mt-pill-domain"></span>
+          </div>
+          <div id="mt-window">
+            <div id="mt-bar-top">
+              <div id="mt-dots"><span class="mt-wdot"></span><span class="mt-wdot"></span><span class="mt-wdot"></span></div>
+              <div id="mt-url">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#5a46d6" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                <span id="mt-url-text"></span>
+              </div>
+            </div>
+            <div id="mt-view">
+              <div id="mt-page">
+                <img id="mt-img" alt="" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const vars = (window.__hyperframes && window.__hyperframes.getVariables && window.__hyperframes.getVariables()) || {};
+        const layout = ["side", "below", "above"].includes(String(vars.layout)) ? String(vars.layout) : "side";
+        const hold = Math.max(1.5, Number(vars.hold) || 4);
+        const vw = Number(vars.vw) || 1440, vh = Number(vars.vh) || 900;
+        const domain = String(vars.domain || "my.bookmyshow.com");
+        let rects = [];
+        try { rects = JSON.parse(vars.rects || "[]"); } catch (e) { rects = []; }
+        if (!rects.length) rects = [{ x: vw * 0.3, y: vh * 0.45, w: vw * 0.4, h: 20 }];
+        const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+        document.getElementById("mt-stage").className = "layout-" + layout;
+        document.getElementById("mt-shade").style.setProperty("--shade-dir", { side: "90deg", below: "180deg", above: "0deg" }[layout]);
+
+        // Caption lines. Title words sit in masks so each one rises into place.
+        const kicker = String(vars.kicker ?? "GOING TO");
+        const meta = String(vars.meta ?? "7 NOV 2026 · MEGA STAR ARENA");
+        document.getElementById("mt-kicker-text").textContent = kicker;
+        document.getElementById("mt-meta-text").textContent = meta;
+        if (!kicker) document.getElementById("mt-kicker").style.display = "none";
+        if (!meta) document.getElementById("mt-meta").style.display = "none";
+        const text = String(vars.text || "QWER 2nd TOUR <ROCKATION : ROCKET LAUNCH!!> IN KUALA LUMPUR");
+        const words = text.trim().split(/\s+/);
+        document.getElementById("mt-title").innerHTML = words.map((w) => {
+          const hi = /^\*.*\*$/.test(w) && w.length > 2;
+          const t = hi ? w.slice(1, -1) : w;
+          return '<span class="w"><span class="wi' + (hi ? " hi" : "") + '">' + esc(t) + "</span></span>";
+        }).join(" ");
+
+        // Source window.
+        const W = layout === "side" ? 1020 : 960, H = Math.round(W / 1.6);
+        document.getElementById("mt-window").style.width = W + "px";
+        const view = document.getElementById("mt-view");
+        view.style.width = W + "px";
+        view.style.height = H + "px";
+        document.getElementById("mt-pill-label").textContent = String(vars.label || "SOURCE");
+        document.getElementById("mt-pill-domain").textContent = domain;
+        document.getElementById("mt-url-text").textContent = domain;
+        // shot = "none": caption only, for item labels and thoughts with no source to show.
+        const noSource = String(vars.shot || "") === "none";
+        if (noSource) {
+          document.getElementById("mt-card").style.display = "none";
+          document.getElementById("mt-scrim").style.display = "none";
+          const dir = { side: "90deg", below: "180deg", above: "0deg" }[layout];
+          document.getElementById("mt-shade").style.background =
+            "linear-gradient(" + dir + ", rgba(14, 9, 40, 0.72) 0%, rgba(14, 9, 40, 0.42) 20%, rgba(14, 9, 40, 0) 42%)";
+        } else {
+          document.getElementById("mt-img").src = String(vars.shot || "assets/facts/qwer-bms-preview.jpg");
+        }
+
+        const page = document.getElementById("mt-page");
+        page.style.width = vw + "px";
+        page.style.height = vh + "px";
+        const marks = rects.map((r) => {
+          const m = document.createElement("span");
+          m.className = "mt-mark";
+          m.style.left = r.x - 4 + "px";
+          m.style.top = r.y - 3 + "px";
+          m.style.width = r.w + 8 + "px";
+          m.style.height = r.h + 6 + "px";
+          page.appendChild(m);
+          return m;
+        });
+
+        // Push-in on the fact's lines, clamped to the page, at least 45% of the page wide.
+        const s0 = W / vw;
+        let bx = Math.min(...rects.map((r) => r.x)) - 60, by = Math.min(...rects.map((r) => r.y)) - 40;
+        let bw = Math.max(...rects.map((r) => r.x + r.w)) + 60 - bx, bh = Math.max(...rects.map((r) => r.y + r.h)) + 40 - by;
+        const minW = 0.45 * vw;
+        if (bw < minW) { bx = Math.max(0, Math.min(vw - minW, bx - (minW - bw) / 2)); bw = minW; }
+        const zMax = Math.max(1, Number(vars.zoom) || 2.0); // cap the push-in (e.g. 1.15 keeps a photo source in view)
+        const z = Math.min(zMax, Math.max(1,Math.min((0.92 * vw) / bw, (0.55 * vh) / bh)));
+        const S = s0 * z;
+        const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+        const tx = clamp(W / 2 - (bx + bw / 2) * S, W - vw * S, 0);
+        const ty = clamp(H / 2 - (by + bh / 2) * S, H - vh * S, 0);
+
+        // Timing: the caption is read alone first, then the source joins.
+        const nWords = words.length + kicker.split(/\s+/).length + meta.split(/\s+/).length;
+        const wordsEnd = 0.75 + 0.07 * (words.length - 1) + 0.5;
+        const cardAt = Number(vars.cardAt) > 0 ? Number(vars.cardAt) : Math.max(2.4, wordsEnd + clamp(0.16 * nWords, 1.2, 3));
+        const markAt = cardAt + 2.1;
+        const markEnd = markAt + 0.45 + 0.22 * (marks.length - 1);
+        const outAt = noSource ? wordsEnd + hold : markEnd + hold;
+
+        const tl = gsap.timeline({ paused: true });
+        const enter = { side: { x: 80 }, below: { y: 60 }, above: { y: -60 } }[layout];
+
+        // 1. Caption alone: shade fades up, accent bar draws, kicker slides, title words rise, meta follows.
+        tl.fromTo("#mt-shade", { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.6, ease: "power1.out" }, 0);
+        tl.fromTo("#mt-accent", { scaleY: 0 }, { scaleY: 1, duration: 0.6, ease: "power3.out" }, 0.2);
+        tl.fromTo("#mt-kicker", { autoAlpha: 0, x: -24 }, { autoAlpha: 1, x: 0, duration: 0.5, ease: "power3.out" }, 0.35);
+        tl.fromTo("#mt-title .wi", { yPercent: 105 }, { yPercent: 0, duration: 0.55, ease: "power3.out", stagger: 0.07 }, 0.6);
+        tl.fromTo("#mt-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: "power3.out" }, wordsEnd - 0.3);
+        tl.fromTo("#mt-meta-text", { autoAlpha: 0, x: -16 }, { autoAlpha: 1, x: 0, duration: 0.5, ease: "power3.out" }, wordsEnd - 0.15);
+
+        // 2. The source joins: scrim, window and pill.
+        if (!noSource) {
+          tl.fromTo("#mt-scrim", { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, ease: "power1.out" }, cardAt - 0.1);
+          tl.fromTo("#mt-window",
+            { autoAlpha: 0, ...enter, scale: 0.92 },
+            { autoAlpha: 1, x: 0, y: 0, scale: 1, duration: 0.7, ease: "power3.out" }, cardAt);
+          tl.fromTo("#mt-pill",
+            { autoAlpha: 0, y: 16, scale: 0.8 },
+            { autoAlpha: 1, y: 0, scale: 1, duration: 0.45, ease: "back.out(2.2)", transformOrigin: "100% 100%" }, cardAt + 0.35);
+          // 3. Push in on the fact, then the marker sweeps each line.
+          tl.fromTo("#mt-page", { x: 0, y: 0, scale: s0 }, { x: tx, y: ty, scale: S, duration: 1.3, ease: "power3.inOut" }, cardAt + 0.8);
+          tl.fromTo(marks, { scaleX: 0 }, { scaleX: 1, duration: 0.45, ease: "power2.out", stagger: 0.22 }, markAt);
+        }
+
+        // Hold: a slow drift so it never looks frozen.
+        tl.fromTo("#mt-stage", { y: 0 }, { y: -8, duration: Math.max(1, outAt - 0.6), ease: "sine.inOut" }, 0.6);
+
+        // 4. Out together: source first, then the caption lines slide away, then the shade.
+        tl.to(["#mt-window", "#mt-pill"], { autoAlpha: 0, scale: 0.94, y: -20, duration: 0.4, ease: "power2.in" }, outAt);
+        tl.to(["#mt-kicker", "#mt-title", "#mt-meta"], { autoAlpha: 0, x: -30, duration: 0.35, ease: "power2.in", stagger: 0.04 }, outAt + 0.08);
+        tl.to("#mt-accent", { scaleY: 0, duration: 0.3, ease: "power2.in" }, outAt + 0.12);
+        tl.to(["#mt-scrim", "#mt-shade"], { autoAlpha: 0, duration: 0.45, ease: "power1.in" }, outAt + 0.05);
+        tl.set({}, {}, outAt + 0.55);
+
+        window.__timelines = window.__timelines || {};
+        window.__timelines["modern-talk"] = tl;
+        tl.seek(0);
+      })();
+    </script>
+  </body>
+</html>

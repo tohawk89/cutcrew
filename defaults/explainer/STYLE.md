@@ -60,7 +60,7 @@ Numbers: `styles/explainer/style.json`.
 
 ## Credits (approved layout)
 Logo + URL on top, a thin line, then two columns (small grey caps labels, white values, teal links):
-CREATED BY <your name> · MADE WITH CutCrew (github.com/tohawk89/cutcrew) · VOICE Kokoro text-to-speech · MUSIC "title" by artist · source.
+CREATED BY <your name> · MADE WITH CutCrew (github.com/tohawk89/cutcrew) · VOICE Kokoro TTS · ANIMATION FlatStory (when its clips are used) · MUSIC "title" by artist · source.
 On screen ≥ 5 s; rows appear one by one.
 
 ## Process (the user's gates)
